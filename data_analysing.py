@@ -35,7 +35,7 @@ def concat_data(to_excel=False):
     return unique_universite, unique_filieres
 
 
-def insert_data_to_sqlite():
+def insert_data_to_db():
     sql_create_universite_table = """ CREATE TABLE IF NOT EXISTS universite (
                                 id integer PRIMARY KEY,
                                 nom text NOT NULL,
@@ -120,4 +120,4 @@ def insert_data_to_sqlite():
 
 
 if __name__ == "__main__":
-    insert_data_to_sqlite()
+    insert_data_to_db()

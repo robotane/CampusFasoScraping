@@ -8,7 +8,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.wait import WebDriverWait
 
-from data_analysing import insert_data_to_sqlite
+from data_analysing import insert_data_to_db
 from Constants import VERBOSE, WAIT
 
 options = Options()
@@ -171,4 +171,4 @@ def scrap_data_to_excel():
 
 if __name__ == "__main__":
     scrap_data_to_excel()
-    insert_data_to_sqlite()
+    insert_data_to_db()
