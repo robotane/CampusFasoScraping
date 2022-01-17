@@ -1,5 +1,7 @@
 # Created on 8/12/2021 8:51:32 PM GMT by John Robotane
 import glob
+import os
+import pathlib
 import sqlite3
 
 import pandas as pd
@@ -18,16 +20,20 @@ def concat_data(to_excel=False):
         print('reading "./filieres/*.xlsx" files...')
     all_filieres = pd.DataFrame()
     for f_filiere in glob.glob("./filieres/*.xlsx"):
+        print(f_filiere)
         filiere_df = pd.read_excel(f_filiere, index_col=0)
         all_filieres = all_filieres.append(filiere_df, ignore_index=True)
 
+    # unique_filieres = all_filieres.sort_values("Université")
     if VERBOSE:
         print("Making 'filieres' unique")
-    unique_filieres = all_filieres.sort_values("Nombre de places restantes").groupby(
+
+    # Filieres should be unique
+    unique_filieres = all_filieres.sort_values("Université").groupby(
         by=["Université", "Faculté ou UFR", "Nom de la filière", "Liste des séries autorisées"]).first().reset_index()
     if to_excel:
-        unique_filieres.to_excel("SortedUniqueFilieresData.xlsx")
-        unique_universite.to_excel("UniqueUniversiteData.xlsx")
+        unique_filieres.to_excel("NEW_FilieresData.xlsx")
+        unique_universite.to_excel("NEW_UniversiteData.xlsx")
 
     # filitered_filieres = all_filieres.drop_duplicates(
     #     subset=["Faculté ou UFR", "Nom de la filière", "Liste des séries autorisées"])
@@ -35,52 +41,29 @@ def concat_data(to_excel=False):
     return unique_universite, unique_filieres
 
 
-def insert_data_to_db():
+def insert_data_to_db(universites, filieres):
     sql_create_universite_table = """ CREATE TABLE IF NOT EXISTS universite (
                                 id integer PRIMARY KEY,
-                                nom text NOT NULL,
-                                ville text,
-                                status text
+                                nom TEXT NOT NULL,
+                                ville TEXT,
+                                status TEXT
                         ); """
 
     sql_create_filiere_table_old = """CREATE TABLE IF NOT EXISTS filiere (
-                                        id integer PRIMARY KEY,
-                                        id_universite integer NOT NULL,
-                                        nom_universite text,
-                                        ufr text,
-                                        nom text,
-                                        entretien text,
-                                        series text,
-                                        contraintes text,
-                                        formules_classement text,
-                                        place_total integer,
-                                        places_restantes integer,
-                                        conditions text,
-                                        matieres_dominantes text,
-                                        matieres_importantes_de_tl text,
-                                        niveau_sortie text,
-                                        debouches text,
-                                        informations_complementaires text,
+                                        id integer PRIMARY KEY, id_universite integer NOT NULL, nom_universite TEXT,
+                                        ufr TEXT, nom TEXT, entretien TEXT, series TEXT, contraintes TEXT,
+                                        formules_classement TEXT, place_total integer, places_restantes integer,
+                                        conditions TEXT, matieres_dominantes TEXT, matieres_importantes_de_tl TEXT,
+                                        niveau_sortie TEXT, debouches TEXT, informations_complementaires TEXT,
                                         FOREIGN KEY (id_universite) REFERENCES universite (id)
                                     );"""
 
     sql_create_filiere_table = """CREATE TABLE IF NOT EXISTS filiere (
-                                        id integer PRIMARY KEY,
-                                        nom_universite text,
-                                        ufr text,
-                                        nom text,
-                                        series text,
-                                        entretien text,
-                                        contraintes text,
-                                        formules_classement text,
-                                        place_total integer,
-                                        places_restantes integer,
-                                        conditions text,
-                                        matieres_dominantes text,
-                                        matieres_importantes_de_tl text,
-                                        niveau_sortie text,
-                                        debouches text,
-                                        informations_complementaires text
+                                        id integer PRIMARY KEY, nom_universite TEXT, ufr TEXT, nom TEXT, series TEXT,
+                                        entretien TEXT, contraintes TEXT, formules_classement TEXT, place_total integer,
+                                        places_restantes integer, conditions TEXT, matieres_dominantes TEXT,
+                                        matieres_importantes_de_tl TEXT, niveau_sortie TEXT, debouches TEXT,
+                                        informations_complementaires TEXT
                                     );"""
 
     sql_insert_universite_query = """INSERT INTO universite (
@@ -120,4 +103,4 @@ def insert_data_to_db():
 
 
 if __name__ == "__main__":
-    insert_data_to_db()
+    insert_data_to_db(*concat_data(to_excel=True))

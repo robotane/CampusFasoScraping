@@ -2,6 +2,7 @@
 
 import pandas as pd
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -47,44 +48,34 @@ def scrap_data_to_excel():
         if VERBOSE:
             print("Accessing the link...")
         driver.get("https://www.campusfaso.bf/formations/rechercher-formation")
-        driver.implicitly_wait(WAIT)
+        # driver.implicitly_wait(WAIT)
         # getting all the options of the 'serie' select input
 
-        series = [o.text for o in get_serie(driver).options][1:]
         universite_data = {
             "nom": [],
             "ville": [],
             "status": [],
         }
         if VERBOSE:
-            print("Checking for last_serie")
+            print("Checking for last_universite")
         try:
-            with open("last_serie.txt", "r") as sf:
-                last_serie = sf.read()
+            with open("last_universite.txt", "r") as sf:
+                last_universite = sf.read().strip()
                 if VERBOSE:
-                    print(f"last_serie found: {last_serie}")
+                    print(f"last_universite found: {last_universite}")
         except FileNotFoundError:
-            last_serie = None
+            last_universite = None
             if VERBOSE:
-                print("last_serie not found...")
-        # for all 'serie', select
-        for serie in series:
-            if check_last and last_serie and (serie != last_serie):
+                print("last_universite not found...")
+
+        universites = [o.text.strip() for o in get_universite(driver).options][1:]
+        for universite in universites:
+            if check_last and last_universite and (universite != last_universite):
                 if VERBOSE:
-                    print(f"skipped serie {serie}")
+                    print(f"skipped {universite}")
                 continue
             else:
                 check_last = False
-
-            select_serie(driver, serie)
-            with open("last_serie.txt", "w") as sf:
-                sf.write(f"{serie}")
-
-            # TODO Fix this to append 'filieres' to the existing excel sheet starting from 'last_serie'
-            universite_df = pd.DataFrame.from_dict(universite_data)
-            universite_df.to_excel("UniversiteData.xlsx")
-            # end to do Scope
-
             filiere_data = {"Université": [],
                             "Faculté ou UFR": [],
                             "Nom de la filière": [],
@@ -102,68 +93,63 @@ def scrap_data_to_excel():
                             "Informations complémentaires": [],
                             }
             if VERBOSE:
-                print(f"Serie: {serie}\n")
+                print(f"{universite}\n")
+            with open("last_universite.txt", "w") as sf:
+                sf.write(universite)
+            universite_dim = universite[universite.find("-") + 1:].strip().replace("/", "_").replace(" ", "_")
+            # This is not used anymore!
+            universite_data["nom"].append(universite)
+            universite_data["ville"].append("")
+            universite_data["status"].append("")
             if test and n == N:
                 break
-            select_serie(driver, serie)
-            universites = [o.text.strip() for o in get_universite(driver).options][1:]
-            for universite in universites:
-                # This is not used anymore!
-                universite_data["nom"].append(universite)
-                universite_data["ville"].append("")
-                universite_data["status"].append("")
-                if test and n == N:
-                    break
 
-                select_serie(driver, serie)
-                select_universite(driver, universite)
+            select_universite(driver, universite)
 
-                ufrfacs = [o.text.strip() for o in get_ufrfac(driver).options][1:]
+            driver.find_element(By.ID, "valider").click()
+            try:
+                wrapper = driver.find_element(By.CLASS_NAME, "wrapper")
+            except NoSuchElementException as e:
+                # TODO: still keep the universite name
+                # filiere_df = pd.DataFrame.from_dict(filiere_data)
+                # filiere_df.to_excel(f"filieres/FilieresUniversite#{universite_dim}.xlsx")
+                continue
+            all_ufr = wrapper.find_elements(By.TAG_NAME, "ul")
+            for ufr in all_ufr:
+                all_filieres = ufr.find_elements(By.TAG_NAME, "li")
+                filiere_names = [o.text.strip() for o in all_filieres]
 
-                for ufrfac in ufrfacs:
-                    if test and n == N:
-                        break
+                for name in filiere_names:
+                    if test:
+                        n += 1
+                        if n == N:
+                            break
+                    link = wrapper.find_element(By.LINK_TEXT, name)
+                    link.click()
+                    # time.sleep(1)
+                    fiche = WebDriverWait(driver, WAIT).until(
+                        EC.visibility_of_element_located((By.ID, "fiche-filiere")))
+                    rows = fiche.find_element(By.TAG_NAME, "tbody").find_elements(By.TAG_NAME, "tr")
+
+                    filiere_data["Université"].append(universite)
+                    for row in rows[1:]:
+                        cols = row.find_elements(By.TAG_NAME, "td")
+                        filiere_data[cols[0].text].append(cols[1].text)
+                        if VERBOSE and False:
+                            print(f"{cols[0].text}: {cols[1].text}")
+
+                    # Check if a key has not been set from the past rows and set it to an empty string
+                    filiere_len = len(filiere_data["Université"])
+                    for k in filiere_data.keys():
+                        if len(filiere_data[k]) < filiere_len:
+                            filiere_data[k].append("")
+                    driver.find_element(By.CLASS_NAME, "modal-footer").find_element(By.TAG_NAME, "button").click()
+
                     if VERBOSE:
-                        print(f"{universite}: {ufrfac}\n")
-
-                    select_serie(driver, serie)
-                    select_universite(driver, universite)
-                    select_ufrfac(driver, ufrfac)
-
-                    driver.find_element(By.ID, "valider").click()
-                    wrapper = driver.find_element(By.CLASS_NAME, "wrapper")
-                    all_uni = wrapper.find_elements(By.TAG_NAME, "li")
-                    links_text = [o.text.strip() for o in all_uni]
-                    for text in links_text:
-                        if test:
-                            n += 1
-                            if n == N:
-                                break
-                        link = wrapper.find_element(By.LINK_TEXT, text)
-                        link.click()
-                        # time.sleep(1)
-                        fiche = WebDriverWait(driver, WAIT).until(
-                            EC.visibility_of_element_located((By.ID, "fiche-filiere")))
-                        rows = fiche.find_element(By.TAG_NAME, "tbody").find_elements(By.TAG_NAME, "tr")
-
-                        filiere_data["Université"].append(universite)
-                        for row in rows[1:]:
-                            cols = row.find_elements(By.TAG_NAME, "td")
-                            filiere_data[cols[0].text].append(cols[1].text)
-                            if VERBOSE and False:
-                                print(f"{cols[0].text}: {cols[1].text}")
-
-                        # Check if a key has not been set from the past rows and set it to an empty string
-                        filiere_len = len(filiere_data["Université"])
-                        for k in filiere_data.keys():
-                            if len(filiere_data[k]) < filiere_len:
-                                filiere_data[k].append("")
-                        driver.find_element(By.CLASS_NAME, "modal-footer").find_element(By.TAG_NAME, "button").click()
-                        if VERBOSE:
-                            print(f"Filiere {filiere_len}: {filiere_data['Nom de la filière'][filiere_len - 1]}\n")
+                        print(f"Filiere {filiere_len}: {filiere_data['Nom de la filière'][filiere_len - 1]}\n")
 
             filiere_df = pd.DataFrame.from_dict(filiere_data)
-            filiere_df.to_excel(f"filieres/FilieresSerie#{serie}.xlsx")
+            filiere_df.to_excel(f"filieres/FilieresUniversite#{universite_dim}.xlsx")
 
         # if VERBOSE:
         #     [print(f"{k}: {len(filiere_data[k])}") for k in filiere_data.keys()]
@@ -171,4 +157,4 @@ def scrap_data_to_excel():
 
 if __name__ == "__main__":
     scrap_data_to_excel()
-    insert_data_to_db()
+    # insert_data_to_db()
