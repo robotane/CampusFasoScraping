@@ -83,7 +83,9 @@ def insert_data_to_db(universites, filieres):
 
     universites, filieres = concat_data()
 
-    with sqlite3.connect("./db_campus_faso.db") as con:
+    db_file_path = pathlib.Path("db_campus_faso.db")
+    db_file_path.unlink(missing_ok=True)
+    with sqlite3.connect(db_file_path) as con:
         cur = con.cursor()
         if VERBOSE:
             print("inserting 'universites'...")
